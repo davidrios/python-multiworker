@@ -6,7 +6,6 @@ from Queue import Queue, Empty
 from threading import Thread, current_thread
 from pprint import pprint
 from cStringIO import StringIO
-from datetime import datetime
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class MultiWorker(object):
     def _job_size(self):
         raise NotImplemented
 
-    def _report_completed(self, total_processed):
+    def _report_completed(self, item, total_processed):
         pass
 
     def _worker(self):
@@ -65,7 +64,7 @@ class MultiWorker(object):
             self._data_queue.task_done()
             processed = self._total_processed.next()
             log.debug('incremented total processed, total is %s' % processed)
-            self._report_completed(processed)
+            self._report_completed(item, processed)
 
     def _setup_workers(self):
         if self._worker_threads is not None:
@@ -151,59 +150,3 @@ class MultiWorker(object):
                 log.info('Execution finished successfully.')
 
         return not self._had_errors and not self._stop_all
-
-
-from time import sleep
-from random import randint
-
-# Example with estimated time to complete
-class ExampleProcessor(MultiWorker):
-    def _setup(self):
-        self._start_time = datetime.now()
-        self._last_report = None
-        self._total_items_to_process = 500
-        self._items_to_process = xrange(self._total_items_to_process)
-        print 'started things up.'
-
-    def _cleanup(self):
-        print 'did some house cleaning.'
-
-    def _process_item(self, item):
-        # i have a 1 in 1000 chance of going wrong
-        if randint(0, 1000) == 3:
-            raise Exception('OMG!')
-
-        print 'I did some processing on item: %s' % item
-        sleep(.2)
-
-    def _item_generator(self):
-        return self._items_to_process
-
-    def _job_size(self):
-        return self._total_items_to_process
-
-    def _report_completed(self, total_processed):
-        # report estimated time every 3 seconds
-        time_elapsed = datetime.now() - self._start_time
-        if self._last_report is None:
-            self._last_report = time_elapsed.seconds
-            return
-
-        if time_elapsed.seconds % 3 == 0 and time_elapsed.seconds != self._last_report:
-            self._last_report = time_elapsed.seconds
-            estimated = time_elapsed / total_processed * (self._job_size() - total_processed)
-            print 'Estimated time remaining to complete: %s' % estimated
-
-
-if __name__ == '__main__':
-    import logging
-    import sys
-
-    format = '%(asctime)s:%(levelname)s:%(name)s:%(message)s'
-    logging.basicConfig(level=logging.DEBUG, format=format)
-
-    try:
-        processor = ExampleProcessor(len(sys.argv) > 1 and int(sys.argv[1]) or 4)
-        processor.execute()
-    finally:
-        logging.shutdown()
