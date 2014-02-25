@@ -31,6 +31,9 @@ class MultiWorker(object):
     def _job_size(self):
         raise NotImplemented
 
+    def _report_completed(self, total_processed):
+        pass
+
     def _worker(self):
         my_worker_number = self._worker_threads.index(current_thread())
 
@@ -62,10 +65,7 @@ class MultiWorker(object):
             self._data_queue.task_done()
             processed = self._total_processed.next()
             log.debug('incremented total processed, total is %s' % processed)
-            if processed % 10 == 0:
-                time_elapsed = datetime.now() - self._start_time
-                estimated = time_elapsed / processed * (self._job_size() - processed)
-                log.info('Estimated time remaining to complete: %s' % estimated)
+            self._report_completed(processed)
 
     def _setup_workers(self):
         if self._worker_threads is not None:
@@ -115,7 +115,6 @@ class MultiWorker(object):
         self._stop_all = False
         self._had_errors = False
         self._stop_on_errors = stop_on_errors
-        self._start_time = datetime.now()
         self._total_processed = itertools.count(1)
         self._setup()
 
@@ -157,10 +156,14 @@ class MultiWorker(object):
 from time import sleep
 from random import randint
 
+# Example with estimated time to complete
 class ExampleProcessor(MultiWorker):
     def _setup(self):
+        self._start_time = datetime.now()
+        self._last_report = None
         self._total_items_to_process = 500
         self._items_to_process = xrange(self._total_items_to_process)
+        print 'started things up.'
 
     def _cleanup(self):
         print 'did some house cleaning.'
@@ -178,6 +181,18 @@ class ExampleProcessor(MultiWorker):
 
     def _job_size(self):
         return self._total_items_to_process
+
+    def _report_completed(self, total_processed):
+        # report estimated time every 3 seconds
+        time_elapsed = datetime.now() - self._start_time
+        if self._last_report is None:
+            self._last_report = time_elapsed.seconds
+            return
+
+        if time_elapsed.seconds % 3 == 0 and time_elapsed.seconds != self._last_report:
+            self._last_report = time_elapsed.seconds
+            estimated = time_elapsed / total_processed * (self._job_size() - total_processed)
+            print 'Estimated time remaining to complete: %s' % estimated
 
 
 if __name__ == '__main__':
