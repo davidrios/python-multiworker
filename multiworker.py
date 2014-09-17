@@ -115,9 +115,10 @@ class MultiWorker(object):
         self._had_errors = False
         self._stop_on_errors = stop_on_errors
         self._total_processed = itertools.count(1)
-        self._setup()
-
+        
         try:
+            self._setup()
+
             for item in self._item_generator():
                 if self._need_to_stop():
                     log.debug('stopped processing orders')
