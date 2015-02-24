@@ -1,9 +1,8 @@
 # -*- coding: utf8 -*-
 import logging
 import signal
-import itertools
 from Queue import Queue, Empty
-from threading import Thread, current_thread
+from threading import Thread, current_thread, Lock
 from pprint import pprint
 from cStringIO import StringIO
 
@@ -14,6 +13,7 @@ class MultiWorker(object):
     def __init__(self, workers):
         self.workers_total = workers
         self._worker_threads = None
+        self._total_processed_lock = Lock()
 
     def _setup(self):
         raise NotImplemented
@@ -32,6 +32,11 @@ class MultiWorker(object):
 
     def _report_completed(self, item, total_processed):
         pass
+
+    def _increment_total_processed(self):
+        with self._total_processed_lock:
+            self._total_processed += 1
+            return self._total_processed
 
     def _worker(self):
         my_worker_number = self._worker_threads.index(current_thread())
@@ -62,7 +67,7 @@ class MultiWorker(object):
 
             log.debug('Worker %s: setting task done.' % my_worker_number)
             self._data_queue.task_done()
-            processed = self._total_processed.next()
+            processed = self._increment_total_processed()
             log.debug('incremented total processed, total is %s' % processed)
             self._report_completed(item, processed)
 
@@ -114,7 +119,7 @@ class MultiWorker(object):
         self._stop_all = False
         self._had_errors = False
         self._stop_on_errors = stop_on_errors
-        self._total_processed = itertools.count(1)
+        self._total_processed = 0
         
         try:
             self._setup()
@@ -130,10 +135,9 @@ class MultiWorker(object):
             if not self._need_to_stop():
                 self._data_queue.join()
 
-                total_processed = self._total_processed.next() - 1
-                if total_processed < self._job_size():
+                if self._total_processed != self._job_size():
                     raise Exception('total processed(%s) != expected job size(%s)' %
-                        (total_processed, self._job_size()))
+                        (self._total_processed, self._job_size()))
 
             self._finish_workers(empty=self._need_to_stop())
         except:
