@@ -66,8 +66,8 @@ class MultiWorker(object):
                 log.exception(itempp.getvalue())
 
             log.debug('Worker %s: setting task done.' % my_worker_number)
-            self._data_queue.task_done()
             processed = self._increment_total_processed()
+            self._data_queue.task_done()
             log.debug('incremented total processed, total is %s' % processed)
             self._report_completed(item, processed)
 
